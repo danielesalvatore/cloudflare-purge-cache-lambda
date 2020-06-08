@@ -1,0 +1,40 @@
+{
+  "name": "cloudflare-purge-cache-lambda",
+  "version": "1.0.0",
+  "description": "",
+  "main": "handler.js",
+  "scripts": {
+    "prestart": "sh ./scripts/prestart.sh",
+    "poststart": "sh ./scripts/poststart.sh",
+    "start": "cross-env AWS_SDK_LOAD_CONFIG=true sls offline cloudside",
+    "start:private": "npm start -- -apy-key my-token",
+    "package": "cross-env AWS_SDK_LOAD_CONFIG=true serverless package",
+    "deploy": "cross-env AWS_SDK_LOAD_CONFIG=true serverless deploy",
+    "remove": "cross-env AWS_SDK_LOAD_CONFIG=true serverless remove",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@bitbucket.org-cioapps:cioapps/cloudflare-purge-cache-lambda.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "chrome-remote-interface": "^0.28.2"
+  },
+  "devDependencies": {
+    "babel-loader": "^8.1.0",
+    "cross-env": "^7.0.2",
+    "dotenv": "^8.2.0",
+    "serverless-cloudside-plugin": "^1.0.3",
+    "serverless-dotenv-plugin": "^2.4.2",
+    "serverless-offline": "^5.12.0",
+    "serverless-offline-dotenv": "^0.0.16",
+    "serverless-offline-sqs": "^3.0.1",
+    "serverless-scriptable-plugin": "^1.0.5",
+    "serverless-webpack": "^5.3.2",
+    "webpack": "^4.43.0",
+    "webpack-node-externals": "^1.7.2"
+  }
+}
