@@ -1,5 +1,5 @@
 const chromium = require('chrome-aws-lambda');
-import { isAllowedDomain, getAWSResources } from './utils'
+import { isAllowedDomain, getAWSResources, sendMessageToSQS } from './utils'
 
 const addURLToPurgeQueue = async ({ url }) => {
 
@@ -72,6 +72,7 @@ exports.handler = async (event) => {
     // 5. Only return allowed URLs 
     urls = urls.filter(isAllowedDomain)
 
+    // TODO REMOVE
     urls = [urls[0]]
 
     // 6. Add each URLs to queue to be purged

@@ -87,9 +87,6 @@ functions:
     environment:
       PURGE_REQUESTS_ACCEPTED_QUEUE_URL: !Ref PurgeRequestsAcceptedQueue
       PURGE_REQUESTS_ACCEPTED_QUEUE_NAME: PurgeRequestsAcceptedQueue
-      # URLS_TO_PURGE_QUEUE_URL: !Ref URLsToPurgeQueue
-      # URLS_TO_PURGE_QUEUE_NAME: URLsToPurgeQueue
-
   browser:
     handler: src/browser.handler
     events:
@@ -97,6 +94,19 @@ functions:
           queueName: PurgeRequestsAcceptedQueue
           Fn::GetAtt:
             - PurgeRequestsAcceptedQueue
+            - Arn
+    environment:
+      PURGE_REQUESTS_ACCEPTED_QUEUE_URL: !Ref PurgeRequestsAcceptedQueue
+      PURGE_REQUESTS_ACCEPTED_QUEUE_NAME: PurgeRequestsAcceptedQueue
+      URLS_TO_PURGE_QUEUE_URL: !Ref URLsToPurgeQueue
+      URLS_TO_PURGE_QUEUE_NAME: URLsToPurgeQueue
+  cloudflare:
+    handler: src/cloudflare.handler
+    events:
+      - sqs:
+          queueName: URLsToPurgeQueue
+          Fn::GetAtt:
+            - URLsToPurgeQueue
             - Arn
 
 plugins:
