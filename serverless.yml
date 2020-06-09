@@ -2,11 +2,11 @@ service: cloudflare-purge-cache-lambda
 
 provider:
   name: aws
-  runtime: nodejs10.x
+  runtime: nodejs12.x
   region: eu-west-1
   profile: '${env:AWS_PROFILE}'
   stage: '${env:AWS_STAGE}'
-  timeout: 300
+  timeout: 30
   memorySize: '2048'
   # iamRoleStatements:
   #   - Effect: Allow
@@ -68,8 +68,6 @@ functions:
 
   api:
     handler: src/api.handler
-    layers:
-      - {Ref: ChromePreBuiltLambdaLayer}
     events:
       - http:
           method: GET
@@ -86,11 +84,6 @@ plugins:
   # - serverless-offline-sqs
   # - serverless-offline
 
-layers:
-  chromePreBuilt:
-    package:
-      artifact: .serverless/chrome_aws_lambda.zip
-
 custom:
   webpack:
     webpackConfig: webpack.config.js
@@ -105,8 +98,3 @@ custom:
     endpoint: http://0.0.0.0:9324
     region: eu-west-1
     skipCacheInvalidation: false
-  scriptHooks:
-    before:package:createDeploymentArtifacts:
-      - scripts/build_chrome_layer.sh
-    after:package:createDeploymentArtifacts:
-      - scripts/copy_chrome_artifact.sh

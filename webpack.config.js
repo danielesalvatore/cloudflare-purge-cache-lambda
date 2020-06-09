@@ -7,7 +7,7 @@ module.exports = {
 
     target: 'node',
 
-    externals: [nodeExternals(), 'chrome-aws-lambda'],
+    externals: [nodeExternals()],
 
     mode: slsw.lib.webpack.isLocal ? 'development' : 'production',
 
