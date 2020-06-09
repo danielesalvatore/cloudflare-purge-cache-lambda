@@ -8,24 +8,25 @@ provider:
   stage: '${env:AWS_STAGE}'
   timeout: 30
   memorySize: '2048'
-  # iamRoleStatements:
-  #   - Effect: Allow
-  #     Action:
-  #       - 'ssm:DescribeParameters'
-  #       - 'ssm:GetParameters'
-  #       - 'ssm:GetParameter'
-  #     Resource:
-  #       - 'arn:aws:ssm:eu-west-1:*:parameter/cloudflare-purge-cache-lambda*'
-  #   - Effect: Allow
-  #     Action:
-  #       - 'kms:Decrypt'
-  #     Resource: '*'
-  #   # SQS
-  #   - Effect: Allow
-  #     Action:
-  #       - 'sqs:*'
-  #     Resource:
-  #       - Fn::GetAtt: [URLToPurgeQueue, Arn]
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - 'ssm:DescribeParameters'
+        - 'ssm:GetParameters'
+        - 'ssm:GetParameter'
+      Resource:
+        - 'arn:aws:ssm:eu-west-1:*:parameter/cloudflare-purge-cache-lambda*'
+    - Effect: Allow
+      Action:
+        - 'kms:Decrypt'
+      Resource: '*'
+    # SQS
+    - Effect: Allow
+      Action:
+        - 'sqs:*'
+      Resource:
+        - Fn::GetAtt: [URLToPurgeQueue, Arn]
+        - Fn::GetAtt: [PurgeRequestsQueue, Arn]
   environment:
     PAGE_LOAD_TIMEOUT: 20000
     LOGGING: true
@@ -51,6 +52,10 @@ provider:
 
 resources:
   Resources:
+    PurgeRequestsQueue:
+      Type: 'AWS::SQS::Queue'
+      Properties:
+        QueueName: 'PurgeRequestsQueue'
     URLToPurgeQueue:
       Type: 'AWS::SQS::Queue'
       Properties:
@@ -70,21 +75,23 @@ functions:
     handler: src/api.handler
     events:
       - http:
-          method: GET
+          method: POST
           path: '/'
           cors: true
-          #private: true
+          enabled: ${self:custom.enabled.${opt:stage, self:provider.stage}}
 
 plugins:
-  - serverless-scriptable-plugin
-  # - serverless-offline-dotenv
-  # - serverless-cloudside-plugin
-  - serverless-dotenv-plugin
+  - serverless-cloudside-plugin
   - serverless-webpack
-  # - serverless-offline-sqs
-  # - serverless-offline
+  - serverless-dotenv-plugin
+  - serverless-offline-dotenv
+  - serverless-offline-sqs
+  - serverless-offline
 
 custom:
+  enabled:
+    Development: false
+    Production: true
   webpack:
     webpackConfig: webpack.config.js
     includeModules:
