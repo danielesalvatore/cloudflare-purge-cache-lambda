@@ -1,41 +1,48 @@
 const chromium = require('chrome-aws-lambda');
-const { ALLOWED_DOMAIN } = process.env
+import { isAllowedDomain, getAWSResources } from './utils'
 
-const isAllowedDomain = url => {
+const addURLToPurgeQueue = async ({ url }) => {
 
-  // Remove protocol before to check
-  url = url.replace(/http:\/\//g, '');
-  url = url.replace(/https:\/\//g, '');
-  return url.startsWith(`${ALLOWED_DOMAIN}`)
+  const { URLsToPurgeQueueUrl } = getAWSResources()
+  const messageAttributes = {
+    try: {
+      DataType: "String",
+      StringValue: "1"
+    },
+    url: {
+      DataType: "String",
+      StringValue: url
+    }
+  };
+
+  await sendMessageToSQS({
+    messageAttributes,
+    sqsQueueUrl: URLsToPurgeQueueUrl,
+    messageBody: "New URL to purge!"
+  });
 };
 
-const isValidURL = url => {
+const asyncAddURLToPurgeQueue = async param => addURLToPurgeQueue({ ...param });
 
-  if (!url) {
-    throw new Error(`Your body request does not include the mandatory URL parameter. Please specify a valid URL.`)
-  }
-
-  if (!isAllowedDomain(url)) {
-    throw new Error(`URL not valid. Use ${ALLOWED_DOMAIN} instead, using HTTP or HTTPS procol. Received: ${url}`)
-  }
-}
+const addURLsToPurgeQueue = async ({ urls }) =>
+  Promise.all(urls.map(url => asyncAddURLToPurgeQueue({ url })));
 
 exports.handler = async (event) => {
   let browser = null;
   let urls = [];
-  const { url } = JSON.parse(event.body);
 
   try {
-    isValidURL(url)
-  } catch (error) {
-    return {
-      statusCode: 400,
-      body: error.message
+    // 1. Get URL from SQS event
+    const { Records } = event;
+    const { messageAttributes } = Records[0];
+    const url = messageAttributes.url.stringValue
+
+    if (!url) {
+      console.error(event)
+      throw Error("Impossible to parse URL from SQS event above.")
     }
-  }
 
-  try {
-
+    // 2. Launch headless Chromium
     browser = await chromium.puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
@@ -44,16 +51,16 @@ exports.handler = async (event) => {
       ignoreHTTPSErrors: true,
     });
 
+    // 3. Open a new browser page and listen to Network requests
     let page = await browser.newPage();
-
     await page.setRequestInterception(true);
     page.on('request', request => {
       urls.push(request._url)
       request.continue();
     });
 
-    // Go to URL and wait for page fully loaded.
-    // Javascript promise Race condition
+    // 4. Go to URL and wait for page fully loaded.
+    // Using Promise.all because is JavaScript Promise race condition
     await Promise.all([
       page.goto(url),
       // https://pptr.dev/#?product=Puppeteer&version=v2.1.1&show=api-pagewaitfornavigationoptions
@@ -61,6 +68,21 @@ exports.handler = async (event) => {
         waitUntil: 'domcontentloaded'
       })
     ]);
+
+    // 5. Only return allowed URLs 
+    urls = urls.filter(isAllowedDomain)
+
+    urls = [urls[0]]
+
+    // 6. Add each URLs to queue to be purged
+    await addURLsToPurgeQueue({ urls })
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        urls
+      })
+    }
 
   } catch (error) {
     return {
@@ -72,16 +94,4 @@ exports.handler = async (event) => {
       browser.close();
     }
   }
-
-  // Only return allowed URLs 
-  urls = urls.filter(isAllowedDomain)
-
-
-  return {
-    statusCode: 200,
-    body: JSON.stringify({
-      urls
-    })
-  }
-
 };

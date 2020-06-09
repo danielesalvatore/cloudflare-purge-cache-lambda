@@ -25,8 +25,8 @@ provider:
       Action:
         - 'sqs:*'
       Resource:
-        - Fn::GetAtt: [URLToPurgeQueue, Arn]
-        - Fn::GetAtt: [PurgeRequestsQueue, Arn]
+        - Fn::GetAtt: [URLsToPurgeQueue, Arn]
+        - Fn::GetAtt: [PurgeRequestsAcceptedQueue, Arn]
   environment:
     PAGE_LOAD_TIMEOUT: 20000
     LOGGING: true
@@ -52,25 +52,30 @@ provider:
 
 resources:
   Resources:
-    PurgeRequestsQueue:
+    PurgeRequestsAcceptedQueue:
       Type: 'AWS::SQS::Queue'
       Properties:
-        QueueName: 'PurgeRequestsQueue'
-    URLToPurgeQueue:
+        QueueName: 'PurgeRequestsAcceptedQueue'
+    URLsToPurgeQueue:
       Type: 'AWS::SQS::Queue'
       Properties:
-        QueueName: 'URLToPurgeQueue'
+        QueueName: 'URLsToPurgeQueue'
 
 functions:
-  # cloudflare:
-  #   handler: src/cloudflare.handler
-  #   events:
-  #     - sqs:
-  #         queueName: URLToPurgeQueue
-  # Fn::GetAtt:
-  #   - FaoWebsiteTypo3ToProcessQueue
-  #   - Arn
-
+  # Status
+  status:
+    handler: src/status.handler
+    events:
+      - http:
+          path: status
+          method: get
+          cors: true
+          private: ${self:custom.private.${opt:stage, self:provider.stage}}
+    environment:
+      PURGE_REQUESTS_ACCEPTED_QUEUE_URL: !Ref PurgeRequestsAcceptedQueue
+      PURGE_REQUESTS_ACCEPTED_QUEUE_NAME: PurgeRequestsAcceptedQueue
+      URLS_TO_PURGE_QUEUE_URL: !Ref URLsToPurgeQueue
+      URLS_TO_PURGE_QUEUE_NAME: URLsToPurgeQueue
   api:
     handler: src/api.handler
     events:
@@ -78,7 +83,21 @@ functions:
           method: POST
           path: '/'
           cors: true
-          enabled: ${self:custom.enabled.${opt:stage, self:provider.stage}}
+          private: ${self:custom.private.${opt:stage, self:provider.stage}}
+    environment:
+      PURGE_REQUESTS_ACCEPTED_QUEUE_URL: !Ref PurgeRequestsAcceptedQueue
+      PURGE_REQUESTS_ACCEPTED_QUEUE_NAME: PurgeRequestsAcceptedQueue
+      # URLS_TO_PURGE_QUEUE_URL: !Ref URLsToPurgeQueue
+      # URLS_TO_PURGE_QUEUE_NAME: URLsToPurgeQueue
+
+  browser:
+    handler: src/browser.handler
+    events:
+      - sqs:
+          queueName: PurgeRequestsAcceptedQueue
+          Fn::GetAtt:
+            - PurgeRequestsAcceptedQueue
+            - Arn
 
 plugins:
   - serverless-cloudside-plugin
@@ -89,7 +108,7 @@ plugins:
   - serverless-offline
 
 custom:
-  enabled:
+  private:
     Development: false
     Production: true
   webpack:
