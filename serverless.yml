@@ -6,8 +6,7 @@ provider:
   region: eu-west-1
   profile: '${env:AWS_PROFILE}'
   stage: '${env:AWS_STAGE}'
-  timeout: 30
-  memorySize: '2048'
+  memorySize: '512'
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -25,7 +24,6 @@ provider:
       Action:
         - 'sqs:*'
       Resource:
-        - Fn::GetAtt: [URLsToPurgeQueue, Arn]
         - Fn::GetAtt: [PurgeRequestsAcceptedQueue, Arn]
   environment:
     PAGE_LOAD_TIMEOUT: 20000
@@ -56,10 +54,6 @@ resources:
       Type: 'AWS::SQS::Queue'
       Properties:
         QueueName: 'PurgeRequestsAcceptedQueue'
-    URLsToPurgeQueue:
-      Type: 'AWS::SQS::Queue'
-      Properties:
-        QueueName: 'URLsToPurgeQueue'
 
 functions:
   # Status
@@ -74,8 +68,6 @@ functions:
     environment:
       PURGE_REQUESTS_ACCEPTED_QUEUE_URL: !Ref PurgeRequestsAcceptedQueue
       PURGE_REQUESTS_ACCEPTED_QUEUE_NAME: PurgeRequestsAcceptedQueue
-      URLS_TO_PURGE_QUEUE_URL: !Ref URLsToPurgeQueue
-      URLS_TO_PURGE_QUEUE_NAME: URLsToPurgeQueue
   api:
     handler: src/api.handler
     events:
@@ -88,26 +80,18 @@ functions:
       PURGE_REQUESTS_ACCEPTED_QUEUE_URL: !Ref PurgeRequestsAcceptedQueue
       PURGE_REQUESTS_ACCEPTED_QUEUE_NAME: PurgeRequestsAcceptedQueue
   browser:
+    memorySize: '2048'
     handler: src/browser.handler
     events:
       - sqs:
           queueName: PurgeRequestsAcceptedQueue
-          Fn::GetAtt:
-            - PurgeRequestsAcceptedQueue
-            - Arn
+          arn:
+            Fn::GetAtt:
+              - PurgeRequestsAcceptedQueue
+              - Arn
     environment:
       PURGE_REQUESTS_ACCEPTED_QUEUE_URL: !Ref PurgeRequestsAcceptedQueue
       PURGE_REQUESTS_ACCEPTED_QUEUE_NAME: PurgeRequestsAcceptedQueue
-      URLS_TO_PURGE_QUEUE_URL: !Ref URLsToPurgeQueue
-      URLS_TO_PURGE_QUEUE_NAME: URLsToPurgeQueue
-  cloudflare:
-    handler: src/cloudflare.handler
-    events:
-      - sqs:
-          queueName: URLsToPurgeQueue
-          Fn::GetAtt:
-            - URLsToPurgeQueue
-            - Arn
 
 plugins:
   - serverless-cloudside-plugin

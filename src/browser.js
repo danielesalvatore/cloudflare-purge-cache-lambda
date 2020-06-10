@@ -1,31 +1,8 @@
 const chromium = require('chrome-aws-lambda');
-import { isAllowedDomain, getAWSResources, sendMessageToSQS } from './utils'
-
-const addURLToPurgeQueue = async ({ url }) => {
-
-  const { URLsToPurgeQueueUrl } = getAWSResources()
-  const messageAttributes = {
-    try: {
-      DataType: "String",
-      StringValue: "1"
-    },
-    url: {
-      DataType: "String",
-      StringValue: url
-    }
-  };
-
-  await sendMessageToSQS({
-    messageAttributes,
-    sqsQueueUrl: URLsToPurgeQueueUrl,
-    messageBody: "New URL to purge!"
-  });
-};
-
-const asyncAddURLToPurgeQueue = async param => addURLToPurgeQueue({ ...param });
-
-const addURLsToPurgeQueue = async ({ urls }) =>
-  Promise.all(urls.map(url => asyncAddURLToPurgeQueue({ url })));
+import { isAllowedDomain, deleteMessageToSQS, getAWSResources } from './utils'
+const cf = require('cloudflare')({
+  token: process.env.CLOUDFLARE_ACCESS_TOKEN
+});
 
 exports.handler = async (event) => {
   let browser = null;
@@ -36,6 +13,7 @@ exports.handler = async (event) => {
     const { Records } = event;
     const { messageAttributes } = Records[0];
     const url = messageAttributes.url.stringValue
+    const { receiptHandle } = Records[0];
 
     if (!url) {
       console.error(event)
@@ -72,16 +50,24 @@ exports.handler = async (event) => {
     // 5. Only return allowed URLs 
     urls = urls.filter(isAllowedDomain)
 
-    // TODO REMOVE
-    urls = [urls[0]]
+    // 6. Purge URLS cache
+    const cloudflareResult = await cf.zones.purgeCache(process.env.CLOUDFLARE_ZONE_ID, {
+      files: urls
+    })
 
-    // 6. Add each URLs to queue to be purged
-    await addURLsToPurgeQueue({ urls })
+    // 7. Delete message from SQS as it was successfully processed by cloudflare
+    const { requestsAcceptedQueueUrl } = getAWSResources()
+    const deleteMessageResult = await deleteMessageToSQS({
+      sqsQueueUrl: requestsAcceptedQueueUrl,
+      receiptHandle
+    });
 
     return {
       statusCode: 200,
       body: JSON.stringify({
-        urls
+        urls,
+        cloudflareResult,
+        deleteMessageResult
       })
     }
 

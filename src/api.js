@@ -28,7 +28,7 @@ exports.handler = async (event) => {
 
     return {
       statusCode: 200,
-      body: `Purge cache request accepted for URL: ${url}`
+      body: `Yay! Purge cache request accepted for URL: ${url}`
     }
 
   } catch (error) {

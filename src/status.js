@@ -17,12 +17,10 @@ const getQueuesStatus = async ({ queues }) =>
 
 module.exports.handler = async (event, context) => {
     const {
-        URLsToPurgeQueueUrl,
         requestsAcceptedQueueUrl
     } = getAWSResources();
 
     const queues = [
-        URLsToPurgeQueueUrl,
         requestsAcceptedQueueUrl
     ];
 

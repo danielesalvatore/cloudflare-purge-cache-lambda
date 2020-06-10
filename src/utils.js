@@ -48,13 +48,11 @@ const _getAWSResources = () => {
     if (_isProductionEnv()) {
         return {
             requestsAcceptedQueueUrl: PURGE_REQUESTS_ACCEPTED_QUEUE_URL,
-            URLsToPurgeQueueUrl: URLS_TO_PURGE_QUEUE_URL,
         };
     }
 
     return {
         requestsAcceptedQueueUrl: `http://localhost:9324/queue/${PURGE_REQUESTS_ACCEPTED_QUEUE_NAME}`,
-        URLsToPurgeQueueUrl: `http://localhost:9324/queue/${URLS_TO_PURGE_QUEUE_NAME}`,
     };
 };
 module.exports.getAWSResources = _getAWSResources;
@@ -83,6 +81,26 @@ const _sendMessageToSQS = async ({
     }
 };
 module.exports.sendMessageToSQS = _sendMessageToSQS;
+
+const _deleteMessageToSQS = async ({
+    receiptHandle,
+    sqsQueueUrl
+}) => {
+    const sqsParams = {
+        ReceiptHandle: receiptHandle,
+        QueueUrl: sqsQueueUrl
+    };
+
+    try {
+        const result = await SQS.deleteMessage(sqsParams).promise();
+
+        return result;
+    } catch (err) {
+        console.error(err);
+        throw new Error(err);
+    }
+};
+module.exports.deleteMessageToSQS = _deleteMessageToSQS;
 
 const _getQueueAttributes = async ({ sqsQueueUrl }) => {
     const sqsParams = {
