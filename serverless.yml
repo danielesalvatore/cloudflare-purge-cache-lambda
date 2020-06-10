@@ -25,6 +25,11 @@ provider:
         - 'sqs:*'
       Resource:
         - Fn::GetAtt: [PurgeRequestsAcceptedQueue, Arn]
+    # SNS
+    - Effect: 'Allow'
+      Action:
+        - 'sns:Publish'
+      Resource: ${self:custom.topicArn}
   environment:
     PAGE_LOAD_TIMEOUT: 20000
     LOGGING: true
@@ -54,6 +59,12 @@ resources:
       Type: 'AWS::SQS::Queue'
       Properties:
         QueueName: 'PurgeRequestsAcceptedQueue'
+        #VisibilityTimeout: 300
+    MonitoringTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: ${self:custom.topicName}
+        DisplayName: 'FAO.org - Cloudflare purge cache lambda'
 
 functions:
   # Status
@@ -62,12 +73,13 @@ functions:
     events:
       - http:
           path: status
-          method: get
+          method: GET
           cors: true
           private: ${self:custom.private.${opt:stage, self:provider.stage}}
     environment:
       PURGE_REQUESTS_ACCEPTED_QUEUE_URL: !Ref PurgeRequestsAcceptedQueue
       PURGE_REQUESTS_ACCEPTED_QUEUE_NAME: PurgeRequestsAcceptedQueue
+
   api:
     handler: src/api.handler
     events:
@@ -79,9 +91,12 @@ functions:
     environment:
       PURGE_REQUESTS_ACCEPTED_QUEUE_URL: !Ref PurgeRequestsAcceptedQueue
       PURGE_REQUESTS_ACCEPTED_QUEUE_NAME: PurgeRequestsAcceptedQueue
+      MONITORING_TOPIC: ${self:custom.topicArn}
+
   browser:
     memorySize: '2048'
     handler: src/browser.handler
+    timeout: 300
     events:
       - sqs:
           queueName: PurgeRequestsAcceptedQueue
@@ -92,8 +107,10 @@ functions:
     environment:
       PURGE_REQUESTS_ACCEPTED_QUEUE_URL: !Ref PurgeRequestsAcceptedQueue
       PURGE_REQUESTS_ACCEPTED_QUEUE_NAME: PurgeRequestsAcceptedQueue
+      MONITORING_TOPIC: ${self:custom.topicArn}
 
 plugins:
+  - serverless-pseudo-parameters
   - serverless-cloudside-plugin
   - serverless-webpack
   - serverless-dotenv-plugin
@@ -118,3 +135,15 @@ custom:
     endpoint: http://0.0.0.0:9324
     region: eu-west-1
     skipCacheInvalidation: false
+  topicName: CloudflarePurgeCacheMonitoringTopic
+  topicArn:
+    Fn::Join:
+      - ''
+      - - 'arn:aws:sns:'
+        - Ref: AWS::Region
+        - ':'
+        - Ref: AWS::AccountId
+        - ':'
+        - Fn::GetAtt:
+            - MonitoringTopic
+            - TopicName

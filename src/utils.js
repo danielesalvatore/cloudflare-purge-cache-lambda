@@ -4,8 +4,8 @@ const {
     IS_OFFLINE,
     PURGE_REQUESTS_ACCEPTED_QUEUE_URL,
     PURGE_REQUESTS_ACCEPTED_QUEUE_NAME,
-    URLS_TO_PURGE_QUEUE_URL,
-    URLS_TO_PURGE_QUEUE_NAME,
+    MONITORING_TOPIC,
+    AWS_STAGE
 } = process.env
 const AWS = require("aws-sdk");
 
@@ -118,3 +118,38 @@ const _getQueueAttributes = async ({ sqsQueueUrl }) => {
     }
 };
 module.exports.getQueueAttributes = _getQueueAttributes;
+
+// ======= AWS / SQS
+
+const _publishNotification = async ({ message }) => {
+
+    // Abort notification if local run
+    if (IS_OFFLINE) {
+        console.log("Abort SNS notifcation as running locally")
+        console.log(message)
+        return;
+    }
+
+    // Create publish parameters
+    var params = {
+        Message: `${AWS_STAGE}: ${message}`,
+        TopicArn: MONITORING_TOPIC
+    };
+
+    // Publish on MonitoringTopic to alert App Support team
+    console.error("Publishnig on Monitoring SNS Topic")
+    console.log(`${AWS_STAGE}: Message ${params.Message} sent to the topic ${params.TopicArn}`);
+
+    // Create promise and SNS service object
+    var publishTextPromise = new AWS.SNS({ apiVersion: '2010-03-31' }).publish(params).promise();
+    // Handle promise's fulfilled/rejected states
+    try {
+        const data = await publishTextPromise;
+        console.log("MessageID is " + data.MessageId);
+    } catch (err) {
+        console.error("Error on publishing topic!");
+        console.error(err);
+    }
+
+}
+module.exports.publishNotification = _publishNotification;
